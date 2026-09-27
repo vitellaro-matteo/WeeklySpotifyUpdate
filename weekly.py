@@ -1,22 +1,43 @@
 import os
+import sys
 from datetime import datetime, timedelta, timezone
 
+import requests
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 
-PLAYLIST_NAME = "Last week's findings"
+PLAYLIST_NAME = "last week's finds"
 SCOPES = "user-library-read playlist-read-private playlist-modify-private playlist-modify-public"
 
 
 def get_client() -> spotipy.Spotify:
+    # In GitHub Actions there's no browser, so we use a stored refresh token instead.
+    refresh_token = os.environ.get("SPOTIFY_REFRESH_TOKEN")
+    if refresh_token:
+        res = requests.post(
+            "https://accounts.spotify.com/api/token",
+            data={
+                "grant_type": "refresh_token",
+                "refresh_token": refresh_token,
+                "client_id": os.environ["SPOTIPY_CLIENT_ID"],
+                "client_secret": os.environ["SPOTIPY_CLIENT_SECRET"],
+            },
+            timeout=30,
+        )
+        res.raise_for_status()
+        return spotipy.Spotify(auth=res.json()["access_token"], requests_timeout=30, retries=3)
+
+    # Local run: interactive browser login, cached to .spotify_cache for next time.
     return spotipy.Spotify(
         auth_manager=SpotifyOAuth(
-        client_id=os.environ["SPOTIPY_CLIENT_ID"],
-        client_secret=os.environ["SPOTIPY_CLIENT_SECRET"],
+            client_id=os.environ["SPOTIPY_CLIENT_ID"],
+            client_secret=os.environ["SPOTIPY_CLIENT_SECRET"],
             redirect_uri="http://127.0.0.1:8888/callback",
             scope=SCOPES,
             cache_path=".spotify_cache",
-        )
+        ),
+        requests_timeout=30,
+        retries=3,
     )
 
 
@@ -70,12 +91,16 @@ def replace_playlist_contents(sp, playlist_id: str, uris: list[str]) -> None:
 
 
 def main():
+    print("Authenticating...", flush=True)
     sp = get_client()
     start, end = last_week_bounds()
+    print(f"Fetching liked tracks between {start} and {end}...", flush=True)
     uris = get_liked_tracks_in_range(sp, start, end)
+    print(f"Found {len(uris)} tracks. Locating/creating playlist...", flush=True)
     playlist_id = get_or_create_playlist(sp, PLAYLIST_NAME)
+    print("Updating playlist contents...", flush=True)
     replace_playlist_contents(sp, playlist_id, uris)
-    print(f"{start:%Y-%m-%d} to {end - timedelta(days=1):%Y-%m-%d}: {len(uris)} tracks -> '{PLAYLIST_NAME}'")
+    print(f"{start:%Y-%m-%d} to {end - timedelta(days=1):%Y-%m-%d}: {len(uris)} tracks -> '{PLAYLIST_NAME}'", flush=True)
 
 
 if __name__ == "__main__":
