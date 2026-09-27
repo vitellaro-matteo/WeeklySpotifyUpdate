@@ -79,7 +79,8 @@ def get_or_create_playlist(sp, name: str) -> str:
         if page["next"] is None:
             break
         offset += 50
-    pl = sp.user_playlist_create(user_id, name, public=False, description="Auto-generated weekly")
+    # POST /users/{id}/playlists returns 403 for Development Mode apps; /me/playlists is the supported endpoint.
+    pl = sp.current_user_playlist_create(name, public=False, description="Auto-generated weekly")
     return pl["id"]
 
 
