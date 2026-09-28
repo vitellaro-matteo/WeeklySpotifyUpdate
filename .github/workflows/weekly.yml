@@ -2,16 +2,22 @@ name: Weekly Spotify playlist
 
 on:
   schedule:
-    - cron: "0 6 * * 1"   # Mondays 06:00 UTC
+    # GitHub can drop scheduled runs under load (worst at the top of the hour), so run off the
+    # hour and three times on Monday. The script replaces the playlist, so extra runs are harmless.
+    - cron: "17 6,12,18 * * 1"   # Mondays 06:17, 12:17, 18:17 UTC
   workflow_dispatch:        # lets you trigger it manually from the Actions tab
+
+permissions:
+  contents: read
+  actions: write   # for the keepalive step
 
 jobs:
   run:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -22,3 +28,11 @@ jobs:
           SPOTIPY_CLIENT_ID: ${{ secrets.SPOTIPY_CLIENT_ID }}
           SPOTIPY_CLIENT_SECRET: ${{ secrets.SPOTIPY_CLIENT_SECRET }}
           SPOTIFY_REFRESH_TOKEN: ${{ secrets.SPOTIFY_REFRESH_TOKEN }}
+
+      # GitHub disables schedules in public repos after 60 days without commits; re-enabling
+      # the workflow via the API resets that timer without needing a commit.
+      - name: Keep schedule alive
+        if: always()
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/weekly.yml/enable"
+        env:
+          GH_TOKEN: ${{ github.token }}
