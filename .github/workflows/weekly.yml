@@ -4,7 +4,7 @@ on:
   schedule:
     # GitHub can drop scheduled runs under load (worst at the top of the hour), so run off the
     # hour and three times on Monday. The script replaces the playlist, so extra runs are harmless.
-    - cron: "17 6,12,18 * * 1"   # Mondays 06:17, 12:17, 18:17 UTC
+    - cron: "17 6,13,18 * * 1"   # Mondays 06:17, 12:17, 18:17 UTC
   workflow_dispatch:        # lets you trigger it manually from the Actions tab
 
 permissions:
